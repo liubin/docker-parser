@@ -18,7 +18,10 @@ RUN cd /tmp \
 RUN echo 'gem: --no-rdoc --no-ri' >> "$HOME/.gemrc"
 
 # aspell
-RUN yum install -y aspell aspell-devel
+
+RUN yum install -y epel-release
+
+RUN yum install -y aspell aspell-devel aspell-en
 
 RUN gem install ffi-aspell
 
