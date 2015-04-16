@@ -1,4 +1,4 @@
-FROM centos:centsos7
+FROM centos:centos7
 
 # for ruby
 
