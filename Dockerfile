@@ -12,13 +12,13 @@ RUN cd /tmp \
     && ./configure --disable-install-doc \
     && make \
     && make install \
-    && rm -rf /tmp/ruby-2.2.2
+    && rm -rf /tmp/ruby-2.2.2*
 
 # skip installing gem documentation
 RUN echo 'gem: --no-rdoc --no-ri' >> "$HOME/.gemrc"
 
 # aspell
-RUN yum install -y aspell libaspell-dev
+RUN yum install -y aspell aspell-devel
 
 RUN gem install ffi-aspell
 
