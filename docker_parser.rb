@@ -5,6 +5,18 @@ require 'ffi/aspell'
 
 $speller = nil
 
+$white_list = ['docker', 'dockerfile', 'eof', 'systemd', 'namespace', 'init',
+  'lxc', 'dns', 'dosnt', 'dont', 'busybox', 'json', 'config', 'libcontainer',
+  'api', 'cpu', 'stdin', 'stdout', 'stderr', 'fixme', 'tls', 'lookup', 'bash',
+  'tcp', 'ip', 'ipv4', 'ipv6', 'tty', 'localhost', 'dir', 'linux', 'struct',
+  'tmp', 'cgroup', 'cgroups', 'aufs', 'http', 'filesystem', 'goroutine', 'unix',
+  'cgi', 'go', 'fd', 'url', 'uri', 'sqlite']
+
+def is_white?(str)
+  return true if $white_list.include? str.downcase
+  false
+end
+
 class SourceLine
 
   attr_accessor :words, :path, :line, :line_number, :invalid_words, :colorize_line
@@ -16,45 +28,91 @@ class SourceLine
     @colorize_line = @line
   end
 
+  # return true has incorrect words
   def parse
     @words = @line.split
     @invalid_words = []
     @words.each do |word|
-      w = word.gsub(/([\.,*\'\";:\(\)])*/,'')
-      if !$speller.correct? w
-        @invalid_words.push w
-        @colorize_line = @colorize_line.sub(word, "\e[31m#{w}\e[0m")
+      w = word.gsub(/([\+\.,*\'\";:\(\)])*/,'')
+      next if w.to_i.to_s == w # ignore integers
+      next if is_white?(w)
+
+      # process < and >
+      if !(word.include? '<' or word.include? '>')
+        next if w.start_with? "http"
+        next if w.include? '-'
+        next if w.downcase.start_with? 'todo'
       end
 
-    end
+
+      if !$speller.correct? w
+        @invalid_words.push w
+        if ENV['HTML']
+          t = word.gsub('<', '&lt;')
+          t = t.gsub('>', '&gt;')
+          @colorize_line = @colorize_line.gsub(word, "<span style='color: red;font-weight: bold;'>#{t}</span>")
+        else
+          @colorize_line = @colorize_line.gsub(word, "\e[31m#{word}\e[0m")
+        end
+      end # speller.correct
+
+    end # end for each word
+    @invalid_words.count !=0
   end
 
 end
 
 
+class SourceFile
+  attr_accessor :path, :lines, :has_error
+  # path is fullpath(dir + filename)
+  def initialize(path, lines, has_error)
+    @path = path
+    @lines = lines
+    @has_error = has_error
+  end
+
+end
 
 # split comments in a file to array
 def split_file file
   lines = []
+  has_error = false
   File.foreach(file).with_index do |line, line_num|
     line_content = line.strip
     if line_content.start_with? "//"
       line_content.sub!('//', '')
       sl = SourceLine.new(file, line_num + 1, line_content)
-      sl.parse
+      has_error = sl.parse
       lines.push sl
     end
   end
   lines
+  SourceFile.new(file, lines, has_error)
 end
 
 def spell_check_file file
-  puts "------------- #{file}"
 
-  lines = split_file file
-  lines.each do |sl|
+  fo = split_file file
+  return if !fo.has_error
+
+  href = "https://github.com/docker/#{$repo}/blob/master#{file.sub($root + "/" + $repo, '')}"
+
+  if ENV['HTML']
+    puts "<a href='#{href}' target='_blank'>#{href}</a><br>"
+  else
+    puts "------------- #{file}"
+  end
+
+  fo.lines.each do |sl|
     if sl.invalid_words.count >0
-      puts "#{sl.line_number} #{sl.colorize_line}"
+      if ENV['HTML']
+        print "<a href='#{href}#L#{sl.line_number}' target='_blank'>[#{sl.line_number}]</a>"
+      else
+        print "[#{sl.line_number}]"
+      end
+      puts " #{sl.colorize_line}"
+      puts "<br>" if ENV['HTML']
     end
   end
 
@@ -69,7 +127,7 @@ def spell_check_dir dir
     if File.directory? file
       spell_check_dir file
     elsif File.file? file
-      spell_check_file file if f.end_with? ".go"
+      spell_check_file file if f.end_with? $ext
     end
   end # foreach dir
 
@@ -78,15 +136,30 @@ end
 
 def main(path)
   $speller = FFI::Aspell::Speller.new('en_US')
-  spell_check_dir path
+  puts "<html><head><title>docker parse</title><head><body>" if ENV['HTML']
+
+  Dir.foreach(path) do |f|
+    next if f == '.' || f == '..'
+    file = "#{path}/#{f}"
+    if File.directory? file
+      puts "<h1><font color='blue'>REPO: docker/#{f}</font></h1>" if ENV['HTML']
+      $repo = f
+      spell_check_dir file
+    end
+  end # foreach dir
+
+  # spell_check_dir path
+  puts "</body></html>" if ENV['HTML']
   $speller.close
 end
 
 
 
 $root = ENV['SRC']
+$ext = ENV['EXT']
+$repo = nil
 
-if $root.nil?
+if $root.nil? or $ext.nil?
   puts "hehe"
 else
   main $root

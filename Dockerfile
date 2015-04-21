@@ -25,9 +25,9 @@ RUN yum install -y aspell aspell-devel aspell-en
 
 RUN gem install ffi-aspell
 
-ADD docker_parser.rb /docker_parser.rb
-
 # default encoding is `none`, will cause an error
 ENV LANG en_US.UTF-8
 
 CMD ["ruby", "/docker_parser.rb"]
+
+ADD docker_parser.rb /docker_parser.rb
