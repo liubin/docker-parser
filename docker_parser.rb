@@ -10,7 +10,10 @@ $white_list = ['docker', 'dockerfile', 'eof', 'systemd', 'namespace', 'init',
   'api', 'cpu', 'stdin', 'stdout', 'stderr', 'fixme', 'tls', 'lookup', 'bash',
   'tcp', 'ip', 'ipv4', 'ipv6', 'tty', 'localhost', 'dir', 'linux', 'struct',
   'tmp', 'cgroup', 'cgroups', 'aufs', 'http', 'filesystem', 'goroutine', 'unix',
-  'cgi', 'go', 'fd', 'url', 'uri', 'sqlite']
+  'cgi', 'go', 'fd', 'url', 'uri', 'sqlite', 'docker', 'runtime', 'ipc', 'sudo',
+  'pid', 'sigterm', 'sigkill', 'redhat', 'https', 'openstack', 'iptables', 'centos',
+  'ubuntu', 'epel', 'nginx', 'apache', 'apache2', 'sshd', 'boot2docker', 'vm', 'osx',
+  'cli', 'btrfs', 'virtualbox']
 
 def is_white?(str)
   return true if $white_list.include? str.downcase
@@ -25,15 +28,20 @@ class SourceLine
     @path = path
     @line_number = line_number
     @line = line
-    @colorize_line = @line
+    @colorize_line = @line.gsub('<', '&lt;')
+    @colorize_line = @colorize_line.gsub('>', '&gt;')
   end
 
   # return true has incorrect words
   def parse
     @words = @line.split
+  
     @invalid_words = []
     @words.each do |word|
-      w = word.gsub(/([\+\.,*\'\";:\(\)])*/,'')
+      w = word.gsub(/([\+\.,*\'\";:\(\)`\[\]?!#])*/,'')
+      w = w.gsub('&lt;', '')
+      w = w.gsub('&gt;', '')
+      next if w == ''
       next if w.to_i.to_s == w # ignore integers
       next if is_white?(w)
 
@@ -48,9 +56,7 @@ class SourceLine
       if !$speller.correct? w
         @invalid_words.push w
         if ENV['HTML']
-          t = word.gsub('<', '&lt;')
-          t = t.gsub('>', '&gt;')
-          @colorize_line = @colorize_line.gsub(word, "<span style='color: red;font-weight: bold;'>#{t}</span>")
+          @colorize_line = @colorize_line.gsub(word, "<span style='color: red;font-weight: bold;'>#{word}</span>")
         else
           @colorize_line = @colorize_line.gsub(word, "\e[31m#{word}\e[0m")
         end
@@ -80,7 +86,7 @@ def split_file file
   has_error = false
   File.foreach(file).with_index do |line, line_num|
     line_content = line.strip
-    if line_content.start_with? "//"
+    if line_content.start_with? "//" or $ext == ".md"
       line_content.sub!('//', '')
       sl = SourceLine.new(file, line_num + 1, line_content)
       has_error = sl.parse
