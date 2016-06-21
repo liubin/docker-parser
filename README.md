@@ -12,7 +12,7 @@ $ cd docker-src
 $ git clone https://github.com/docker/machine.git
 $ git clone https://github.com/docker/docker.git
 
-$ sudo docker run -v /home/liubin/docker-src:/src -e SRC=/src -e EXT=.go -e HTML=true liubin/docker-parser
+$ sudo docker run -v ~/docker-src:/src -e SRC=/src -e EXT=.go -e HTML=true liubin/docker-parser
 ```
 
 where `/src` in the container should contains docker projects.
